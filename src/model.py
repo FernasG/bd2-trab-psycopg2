@@ -25,7 +25,18 @@ class NorthwindModel:
         self.__order_columns = ["orderid", "customerid", "employeeid", "orderdate", "requireddate", "shippeddate", "freight", "shipname", "shipaddress", "shipcity",  "shipregion", "shippostalcode", "shipcountry", "shipperid"]
 
     def create_order(self, order: Order):
+        query = f"SELECT * FROM northwind.employees WHERE employeeid = {order.employeeid}"
+        result = self.__manager.find_one(query)
+
+        if not result: return False
+
+        query = f"SELECT * FROM northwind.customers WHERE customerid = '{order.customerid}'"
+        result = self.__manager.find_one(query)
+
+        if not result: return False
+
         order.orderid = self.__orderid()
+
         query = f"INSERT INTO northwind.orders ({', '.join(self.__order_columns)}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING *"
         values = (order.orderid, order.customerid, order.employeeid, order.orderdate, order.requireddate, order.shippeddate, order.freight, order.shipname, order.shipaddress, order.shipcity, order.shipregion, order.shippostalcode, order.shipcountry, order.shipperid)
         status = self.__manager.insert(query, values)
@@ -42,11 +53,20 @@ class NorthwindModel:
         return order
 
     def update_order(self, data: dict):
+        orderid = data.get("orderid")
         column = data.get("column")
+        value = data.get("value")
+
         if not column or column not in self.__order_columns: 
             return False
-        orderid = data.get("orderid")
-        value = data.get("value")
+
+        if column in ["employeeid", "customerid"]:
+            table, val = ("employees", value) if column == "employeeid" else ("customers", f"'{value}'")
+            query = f"SELECT * FROM northwind.{table} WHERE {column} = {val}"
+            result = self.__manager.find_one(query)
+
+            if not result: return False
+
         query = "UPDATE northwind.orders SET %s = %s WHERE orderid = %s"
         status = self.__manager.update(query, (AsIs(column), value, orderid))
         return status
